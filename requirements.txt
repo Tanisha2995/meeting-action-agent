@@ -5,4 +5,3 @@ psycopg2-binary>=2.9
 pydantic>=2.9,<3
 python-dotenv>=1.0
 requests>=2.32
-google-genai>=1.0
