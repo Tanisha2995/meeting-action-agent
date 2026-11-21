@@ -1,30 +1,48 @@
 import os
 import uuid
 from datetime import datetime
-from sqlalchemy import create_engine, Column, String, Text, Float, DateTime, ForeignKey, Uuid
+from sqlalchemy import create_engine, Column, String, Text, Float, DateTime, ForeignKey, Uuid, JSON
+from sqlalchemy.engine import URL
 from sqlalchemy.orm import declarative_base, sessionmaker
 from dotenv import load_dotenv
 
 load_dotenv()
 
-database_url = os.getenv("DATABASE_URL", "")
-if not database_url or "YOUR-" in database_url:
-    database_url = "sqlite:///meeting_action.db"
+db_host = os.getenv("DB_HOST")
+db_user = os.getenv("DB_USER")
+db_password = os.getenv("DB_PASSWORD")
+db_port = int(os.getenv("DB_PORT", "5432"))
+db_name = os.getenv("DB_NAME", "postgres")
 
-if database_url.startswith("sqlite"):
-    engine = create_engine(database_url, connect_args={"check_same_thread": False})
-else:
+if all([db_host, db_user, db_password]):
+    database_url = URL.create(
+        drivername="postgresql+psycopg2",
+        username=db_user,
+        password=db_password,
+        host=db_host,
+        port=db_port,
+        database=db_name
+    )
     engine = create_engine(database_url, pool_pre_ping=True)
+else:
+    engine = create_engine(
+        "sqlite:///meeting_action.db",
+        connect_args={"check_same_thread": False}
+    )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 class User(Base):
     __tablename__ = "users"
+
     id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String(100), nullable=False)
     email = Column(String(150), unique=True, nullable=False)
     role = Column(String(100))
+    skill = Column(String(255))
+    experience_level = Column(String(100))
+    current_workload = Column(String(100))
 
 class Meeting(Base):
     __tablename__ = "meetings"
@@ -55,6 +73,7 @@ class Task(Base):
     ambiguity_reason = Column(Text, nullable=True)
     ai_reasoning = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
+    required_skills = Column(JSON, default=list, nullable=False)
 
 class FollowUp(Base):
     __tablename__ = "follow_ups"

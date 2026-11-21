@@ -60,11 +60,29 @@ def send_notification(message: str):
 @app.post("/api/meetings/ingest")
 def ingest_meeting(req: IngestRequest, db: Session = Depends(get_db)):
     users = db.query(User).all()
-    team_context = [{"id": str(u.id), "name": u.name, "role": u.role} for u in users]
-    user_map = {u.name.lower(): u.id for u in users}
+
+    team_context = [
+        {
+            "id": str(u.id),
+            "name": u.name,
+            "role": u.role,
+            "skills": [s.strip() for s in (u.skill or "").split(",") if s.strip()],
+            "experience_level": u.experience_level,
+            "current_workload": u.current_workload
+        }
+        for u in users
+    ]
+
+    user_map = {
+        u.name.strip().lower(): u.id
+        for u in users
+    }
 
     open_tasks = db.query(Task).filter(Task.status != "COMPLETED").all()
-    tasks_context = [{"id": str(t.id), "title": t.title, "status": t.status} for t in open_tasks]
+    tasks_context = [
+        {"id": str(t.id), "title": t.title, "status": t.status}
+        for t in open_tasks
+    ]
 
     # Run AI Agent
     analysis = analyze_transcript(
@@ -101,6 +119,7 @@ def ingest_meeting(req: IngestRequest, db: Session = Depends(get_db)):
                     existing.assignee_id = assignee_id
                 existing.due_date = parse_due_date(t.get("due_date_iso")) or existing.due_date
                 existing.priority = t.get("priority") or existing.priority
+                existing.required_skills = t.get("required_skills") or existing.required_skills or []
                 continue
 
         assignee_id = user_map.get(t["assignee_name"].lower()) if t.get("assignee_name") else None
@@ -115,6 +134,7 @@ def ingest_meeting(req: IngestRequest, db: Session = Depends(get_db)):
             assignee_id=assignee_id,
             title=t["title"],
             description=t["description"],
+            required_skills=t.get("required_skills") or [],
             priority=t["priority"],
             status=status,
             due_date=due_date,

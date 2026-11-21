@@ -1,0 +1,172 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MeetMind | AI Meeting Assistant</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<div class="app">
+
+    <aside class="sidebar">
+        <div class="brand">
+            <div class="brand-icon">✳</div>
+            <span>MeetMind</span>
+        </div>
+
+        <p class="nav-label">WORKSPACE</p>
+        <nav>
+            <a class="nav-item active" href="#">▦ <span>Overview</span></a>
+            <a class="nav-item" href="#analyze">✧ <span>Analyze Meeting</span></a>
+            <a class="nav-item" href="#tasks">☷ <span>Tasks</span></a>
+            <a class="nav-item" href="#decisions">◇ <span>Decisions</span></a>
+        </nav>
+
+        <div class="sidebar-bottom">
+            <div class="ai-status">
+                <span class="status-dot"></span>
+                AI Engine Ready
+                <small>Powered by BluesMinds</small>
+            </div>
+            <div class="profile">
+                <div class="avatar">TL</div>
+                <div>
+                    <strong>Team Lead</strong>
+                    <small>Workspace Admin</small>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <main class="main">
+
+        <header class="topbar">
+            <div>
+                <p class="breadcrumb">WORKSPACE / OVERVIEW</p>
+                <h2>Good morning, Team 👋</h2>
+            </div>
+            <div class="top-right">
+                <span class="live-badge"><span class="status-dot"></span> System Online</span>
+                <div class="avatar">TL</div>
+            </div>
+        </header>
+
+        <section class="welcome">
+            <div>
+                <span class="eyebrow">YOUR AI MEETING ASSISTANT</span>
+                <h1>Turn conversations<br>into <span>action.</span></h1>
+                <p>Extract decisions, identify commitments and turn every<br>
+                   meeting into accountable progress.</p>
+                <a href="#analyze" class="primary-btn">✧ Analyze a meeting</a>
+            </div>
+            <div class="welcome-art">✳</div>
+        </section>
+
+        <section class="stats">
+            <div class="stat-card">
+                <div class="stat-top"><span>Total Tasks</span><span>☷</span></div>
+                <h2 id="totalTasks">—</h2>
+                <small>Extracted action items</small>
+            </div>
+            <div class="stat-card">
+                <div class="stat-top"><span>Pending Tasks</span><span>◷</span></div>
+                <h2 id="pendingTasks">—</h2>
+                <small>Awaiting completion</small>
+            </div>
+            <div class="stat-card">
+                <div class="stat-top"><span>Completed</span><span>✓</span></div>
+                <h2 id="completedTasks">—</h2>
+                <small>Tasks marked complete</small>
+            </div>
+            <div class="stat-card">
+                <div class="stat-top"><span>Decisions</span><span>◇</span></div>
+                <h2 id="totalDecisions">—</h2>
+                <small>Meeting decisions recorded</small>
+            </div>
+        </section>
+
+        <section class="content-grid">
+
+            <div class="panel analyze-panel" id="analyze">
+                <div class="panel-heading">
+                    <div>
+                        <span class="eyebrow">AI POWERED EXTRACTION</span>
+                        <h2>Analyze a meeting</h2>
+                    </div>
+                    <span class="ai-tag">✧ AI Agent</span>
+                </div>
+
+                <label for="meetingTitle">Meeting title</label>
+                <input id="meetingTitle" type="text"
+                       placeholder="e.g. Hackathon Team Meeting">
+
+                <label for="transcript">Meeting transcript</label>
+                <textarea id="transcript"
+                    placeholder="Paste your meeting conversation here...&#10;&#10;Example: Aarav: I will prepare the API documentation by November 25.&#10;Team: We agree to use FastAPI for the backend."></textarea>
+
+                <div class="input-footer">
+                    <span>✧ AI will identify tasks, decisions and commitments</span>
+                    <button id="analyzeBtn" class="primary-btn">Analyze with AI →</button>
+                </div>
+                <p id="analysisMessage" class="message"></p>
+            </div>
+
+            <div class="panel insight-panel">
+                <span class="eyebrow">HOW IT WORKS</span>
+                <h2>From discussion<br>to execution.</h2>
+
+                <div class="workflow-step">
+                    <div class="step-icon purple">01</div>
+                    <div><strong>Capture</strong><small>Paste your meeting transcript</small></div>
+                </div>
+                <div class="workflow-step">
+                    <div class="step-icon blue">02</div>
+                    <div><strong>Understand</strong><small>AI extracts decisions and tasks</small></div>
+                </div>
+                <div class="workflow-step">
+                    <div class="step-icon green">03</div>
+                    <div><strong>Execute</strong><small>Track ownership and progress</small></div>
+                </div>
+            </div>
+
+        </section>
+
+        <section class="panel results-panel" id="results" hidden>
+            <div class="panel-heading">
+                <div>
+                    <span class="eyebrow">AI ANALYSIS RESULTS</span>
+                    <h2 id="resultTitle">Meeting analysis</h2>
+                </div>
+                <span class="ai-tag">✓ Analysis complete</span>
+            </div>
+
+            <div class="result-section">
+                <h3>Meeting Summary</h3>
+                <p id="summaryText"></p>
+            </div>
+
+            <div class="result-section" id="decisions">
+                <h3>Decisions made</h3>
+                <div id="decisionList"></div>
+            </div>
+
+            <div class="result-section" id="tasks">
+                <h3>Action items</h3>
+                <div id="taskList"></div>
+            </div>
+        </section>
+
+        <footer>
+            MeetMind <span>·</span> Built to turn every meeting into measurable progress.
+        </footer>
+
+    </main>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>

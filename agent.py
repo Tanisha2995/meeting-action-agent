@@ -1,63 +1,202 @@
+
 import os
 import json
+from pathlib import Path
 from typing import List, Optional
+
+from openai import OpenAI
 from pydantic import BaseModel, Field
-from google import genai
-from google.genai import types
 from dotenv import load_dotenv
 
-load_dotenv()
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+# Load the root .env file
+load_dotenv(Path(__file__).resolve().parent / ".env")
 
-# --- Pydantic Schemas for Structured LLM Output ---
+api_key = os.getenv("BLUESMINDS_API_KEY")
+base_url = os.getenv("BLUESMINDS_BASE_URL")
+model_name = os.getenv("BLUESMINDS_MODEL")
+
+if not api_key or not base_url or not model_name:
+    raise RuntimeError(
+        "Missing BluesMinds configuration. "
+        "Check BLUESMINDS_API_KEY, BLUESMINDS_BASE_URL "
+        "and BLUESMINDS_MODEL in your .env file."
+    )
+
+# Connect to BluesMinds using its OpenAI-compatible API
+client = OpenAI(
+    api_key=api_key,
+    base_url=base_url
+)
+
+
+# ---------- Pydantic Schemas ----------
+
 class ExtractedDecision(BaseModel):
-    decision_text: str = Field(description="Clear statement of what was decided.")
-    context_quote: str = Field(description="Exact quote from transcript proving this decision.")
+    decision_text: str
+    context_quote: str
+
 
 class ExtractedTask(BaseModel):
-    title: str = Field(description="Short actionable task title.")
-    description: str = Field(description="Detailed context of what needs to be done.")
-    assignee_name: Optional[str] = Field(description="Exact name of the person responsible, or null if unclear.")
-    priority: str = Field(description="LOW, MEDIUM, HIGH, or CRITICAL")
-    due_date_iso: Optional[str] = Field(description="ISO 8601 date string (YYYY-MM-DDTHH:MM:SS) if a clear deadline is stated, else null.")
-    confidence_score: float = Field(description="0.0 to 1.0 confidence that this is a firm commitment with clear owner & deadline.")
-    ambiguity_reason: Optional[str] = Field(description="If owner or deadline is missing/vague, explain what needs clarification. Else null.")
-    ai_reasoning: str = Field(description="Explain WHY this was classified as an actionable commitment vs casual talk.")
-    updates_existing_task_id: Optional[str] = Field(description="If this updates an existing open task provided in context, put its UUID here. Else null.")
+    title: str
+    description: str
+    assignee_name: Optional[str] = None
+    priority: str = "MEDIUM"
+    due_date_iso: Optional[str] = None
+    required_skills: List[str] = Field(default_factory=list)
+    confidence_score: float = Field(ge=0.0, le=1.0)
+    ambiguity_reason: Optional[str] = None
+    ai_reasoning: str
+    updates_existing_task_id: Optional[str] = None
+
 
 class MeetingAnalysis(BaseModel):
-    summary: str = Field(description="2-3 sentence executive summary of the meeting.")
-    decisions: List[ExtractedDecision]
-    tasks: List[ExtractedTask]
+    summary: str
+    decisions: List[ExtractedDecision] = Field(default_factory=list)
+    tasks: List[ExtractedTask] = Field(default_factory=list)
 
-def analyze_transcript(transcript: str, team_members: list, existing_tasks: list, current_date: str) -> dict:
+
+# ---------- Meeting Analysis ----------
+
+def analyze_transcript(
+    transcript: str,
+    team_members: list,
+    existing_tasks: list,
+    current_date: str
+) -> dict:
+
+    if not transcript or not transcript.strip():
+        raise ValueError("A valid meeting transcript is required.")
+
     prompt = f"""
-    You are an autonomous Meeting-to-Action AI Agent. Analyze the meeting transcript below.
-    Current Date/Time: {current_date}
+You are an intelligent Meeting-to-Action AI Agent.
 
-    TEAM MEMBERS (Map assignees to these exact names if mentioned):
-    {json.dumps(team_members)}
+CURRENT DATE/TIME:
+{current_date}
 
-    EXISTING OPEN TASKS FROM PREVIOUS MEETINGS (Check if the transcript mentions progress/updates on these instead of creating duplicates):
-    {json.dumps(existing_tasks)}
+TEAM MEMBERS:
+{json.dumps(team_members, default=str)}
 
-    INSTRUCTIONS:
-    1. Distinguish firm commitments from casual ideas or brainstorming.
-    2. Extract key decisions with exact transcript quotes.
-    3. Extract actionable tasks. If an owner or deadline is missing or vague (e.g., "soon", "next week"), set confidence_score < 0.75 and explain what is ambiguous in 'ambiguity_reason'.
-    4. Always provide 'ai_reasoning' explaining your decision-making logic.
+EXISTING OPEN TASKS:
+{json.dumps(existing_tasks, default=str)}
 
-    TRANSCRIPT:
-    {transcript}
-    """
+Analyze the meeting transcript and return JSON with exactly three top-level fields:
 
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-            response_schema=MeetingAnalysis,
-            temperature=0.1,
-        ),
+- summary: A concise summary of the actual meeting.
+- decisions: An array of decisions, each containing decision_text and context_quote.
+- tasks: An array of actionable tasks.
+
+Each task must contain:
+title, description, assignee_name, priority, due_date_iso,
+required_skills, confidence_score, ambiguity_reason,
+ai_reasoning, updates_existing_task_id.
+
+STRICT RULES:
+
+1. Always return summary, decisions and tasks, even when arrays are empty.
+2. Keep decisions and tasks in separate arrays.
+3. Every decision must have an exact verbatim context_quote from the transcript.
+4. Never invent quotes, tasks, people, deadlines or decisions.
+5. Extract firm commitments, not suggestions.
+6. Assign owners only when explicitly identifiable.
+7. Explain missing or uncertain owners/deadlines in ambiguity_reason.
+8. Keep confidence below 0.75 when essential information is ambiguous.
+9. Priority must be LOW, MEDIUM, HIGH or CRITICAL.
+10. Extract relevant skills or use an empty array.
+11. Dates must use ISO 8601 format.
+12. Use null for unknown owners and deadlines.
+13. Confidence must be between 0 and 1.
+14. Check existing tasks before creating duplicates.
+15. Include an existing task UUID when updating a task.
+16. Explain the evidence for each commitment in ai_reasoning.
+17. Summary must never be empty when the transcript contains meeting information.
+18. Return valid JSON only, without Markdown or commentary.
+
+
+TRANSCRIPT:
+{transcript}
+"""
+
+    response = client.chat.completions.create(
+        model=model_name,
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "You are a precise meeting intelligence assistant. "
+                    "Return only valid JSON matching the requested structure."
+                )
+            },
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ],
+        response_format={"type": "json_object"},
+        temperature=0.1
     )
-    return json.loads(response.text)
+
+    
+    content = response.choices[0].message.content
+
+    if not content:
+        raise RuntimeError("BluesMinds returned an empty response.")
+
+    raw = json.loads(content)
+
+    # Normalize the model's field names into our application schema
+    raw_tasks = raw.get("tasks", []) or []
+    decisions = raw.get("decisions", []) or []
+    tasks = []
+
+    for item in raw_tasks:
+        # The model sometimes puts decisions inside the tasks array
+        if item.get("decision_id"):
+            decisions.append(item)
+            continue
+
+        title = item.get("title") or item.get("description") or "Untitled task"
+
+        priority = str(item.get("priority") or "MEDIUM").upper()
+        if priority not in ["LOW", "MEDIUM", "HIGH", "CRITICAL"]:
+            priority = "MEDIUM"
+
+        tasks.append({
+            "title": title,
+            "description": item.get("description") or title,
+            "assignee_name": item.get("assignee_name") or item.get("assignee"),
+            "priority": priority,
+            "due_date_iso": item.get("due_date_iso") or item.get("deadline"),
+            "required_skills": item.get("required_skills") or [],
+            "confidence_score": item.get("confidence_score", 0.5),
+            "ambiguity_reason": item.get("ambiguity_reason"),
+            "ai_reasoning": item.get("ai_reasoning") or "",
+            "updates_existing_task_id": item.get("updates_existing_task_id")
+        })
+
+    normalized_decisions = []
+
+    for item in decisions:
+        normalized_decisions.append({
+            "decision_text": item.get("decision_text") or item.get("description") or "",
+            "context_quote": item.get("context_quote") or item.get("decision_quote") or ""
+        })
+
+    normalized = {
+        "summary": raw.get("summary") or "Summary unavailable from AI response.",
+        "decisions": normalized_decisions,
+        "tasks": tasks
+    }
+
+    result = MeetingAnalysis.model_validate(normalized)
+
+    return result.model_dump(mode="json")
+
+    if not content:
+        raise RuntimeError("BluesMinds returned an empty response.")
+
+    # Validate the returned JSON against our schemas
+    print("RAW BLUESMINDS RESPONSE:")
+    print(content)
+    result = MeetingAnalysis.model_validate_json(content)
+
+   
